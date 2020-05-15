@@ -1,16 +1,19 @@
+module Day2Intcode where
+
 import qualified Intcode
 import qualified Utils
 
-part1 :: IO [Int]
+part1 :: IO Int
 part1 = do
-  rawInput <- readFile "day2input.txt"
+  rawInput <- readFile "input/day2input.txt"
   let originalInput = Intcode.parseNumericInput rawInput
   let updatedInput = replaceNounVerb 12 2 originalInput
-  Intcode.executeIntcodeList 0 updatedInput
+  result <- Intcode.executeIntcodeList 0 updatedInput
+  return $ head result
 
 part2 :: IO Int
 part2 = do
-  rawInput <- readFile "day2input.txt"
+  rawInput <- readFile "input/day2input.txt"
   let originalInput = Intcode.parseNumericInput rawInput
   let (solNoun,solVerb) = head . testOpCodes [0..99] $ originalInput
   return (100 * solNoun + solVerb)

@@ -1,30 +1,34 @@
-module CrossingWires where
+module Day3Wires where
 
 import Data.List
 import qualified Utils
 
 part1 :: IO Int
 part1 = do
-  input <- readFile "day3input.txt"
+  input <- readFile "input/day3input.txt"
   let [wire1,wire2] = map (parseWireSegments (0,0) . Utils.splitAtCommas) $ lines input
       (shortestManhattanDistance,_,_,_) = shortestIntersectDistance $ findIntersections wire1 wire2
   return shortestManhattanDistance
   
 part2 :: IO Int
 part2 = do
-  input <- readFile "day3input.txt"
+  input <- readFile "input/day3input.txt"
   let [wire1,wire2] = map (parseWireSegments (0,0) . Utils.splitAtCommas) $ lines input
       pathLengths = pathLengthsToIntersections wire1 wire2 (findIntersections wire1 wire2)
       shortestLength = foldl1 min pathLengths
   return shortestLength
 
-tests :: IO ()
-tests = do
+test :: IO ()
+test = do
   part1res <- part1
-  if part1res /= 225 then print ("Part 1 gave unexpected result: " ++ show part1res) else return ()
+  if part1res /= 225
+    then putStrLn ("Part 1 gave unexpected result: " ++ show part1res)
+    else putStrLn "Part 1 succeeded."
   part2res <- part2
-  if part2res /= 35194 then print ("Part 2 gave unexpected result: " ++ show part2res) else return ()
-
+  if part2res /= 35194
+    then putStrLn ("Part 2 gave unexpected result: " ++ show part2res)
+    else putStrLn "Part 2 succeeded."
+    
 -- First Int -> location, 2nd/third -> start/end
 data WireSegment = Vertical Int Int Int | Horizontal Int Int Int deriving (Show, Eq)
 

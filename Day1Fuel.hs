@@ -1,8 +1,8 @@
-module Fuel where
+module Day1Fuel where
 
 main :: IO Int
 main = do
-  inputNumbers <- readFile "day1inputs.txt"
+  inputNumbers <- readFile "input/day1input.txt"
 
   let fuelAmountList = parseInput . lines $ inputNumbers
       fuelMass = foldl1 (+) . map moduleFuel $ fuelAmountList

@@ -1,11 +1,11 @@
-module Passwords where
+module Day4Passwords where
 
 import Data.Char
 import Data.List
 
 part1 :: IO Int
 part1 = do
-  rawInput <- readFile "day4input.txt"
+  rawInput <- readFile "input/day4input.txt"
   let passRange = parseRange rawInput
       nonDecreasingPasswords = filter allDigitsNotDescending passRange
       samePairPasswords = filter anySameDigitPairs passRange
@@ -13,7 +13,7 @@ part1 = do
 
 part2 :: IO Int
 part2 = do
-  rawInput <- readFile "day4input.txt"
+  rawInput <- readFile "input/ day4input.txt"
   let passRange = parseRange rawInput
       nonDecreasingPasswords = filter allDigitsNotDescending passRange
       samePairPasswords = filter anySameDigitPairs passRange
