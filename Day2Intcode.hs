@@ -15,17 +15,16 @@ part2 :: IO Int
 part2 = do
   rawInput <- readFile "input/day2input.txt"
   let originalInput = Intcode.parseNumericInput rawInput
-  let (solNoun,solVerb) = head . testOpCodes [0..99] $ originalInput
-  return (100 * solNoun + solVerb)
-
-testOpCodes :: [Int] -> [Int] -> [(Int, Int)]
-testOpCodes nvRange valueList = do
-  [(noun, verb) |
-    noun <- nvRange,
-    verb <- nvRange,
-    let updatedList = replaceNounVerb noun verb valueList
-        result = Intcode.executeIntcodeListNoIO 0 updatedList
-    in head result == 19690720]
+  resLists <- testOpCodes [0..99] originalInput
+  let (_:noun:verb:_) = head . filter (\(res:_) -> res == 19690720) $ resLists
+  return $ 100 * noun + verb
+  
+testOpCodes :: [Int] -> [Int] -> IO [[Int]]
+testOpCodes nvRange valueList =
+  sequence [Intcode.executeIntcodeList 0 updatedList |
+             noun <- nvRange,
+             verb <- nvRange,
+             let updatedList = replaceNounVerb noun verb valueList]
 
 replaceNounVerb :: Int -> Int -> [Int] -> [Int]
 replaceNounVerb noun verb fullList =
