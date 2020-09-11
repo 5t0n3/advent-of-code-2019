@@ -1,40 +1,32 @@
 module Day6Orbits where
 
-import Data.Maybe
-import Data.List
-import Data.Map.Strict (Map, alter, empty, toList)
+import Data.Map.Strict (Map, alter, empty, (!?))
 import qualified Utils
 
-type OrbitSet = (String, [String])
+type OrbitMap = Map String [String]
 
-part1 :: IO (Int, Int)
+part1 :: IO ()
 part1 = do
   rawInput <- readFile "input/day6input.txt"
-  let parsedOrbits = parseOrbits rawInput
-  let centerIdx = fromJust (findOrbitWithName parsedOrbits "COM")
-  let (direct, indirect) = countOrbitsNew parsedOrbits centerIdx
+  let (direct, indirect) = countOrbits (parseOrbits rawInput) "COM"
   putStrLn ("Direct: " ++ show direct ++
             "\nIndirect: " ++ show indirect ++
             "\nTotal: " ++ show (direct + indirect))
-  return (direct, indirect)
-  where parseOrbits = toList . splitOrbitsToMap empty . splitOrbits
+    where parseOrbits = makeOrbitMap empty . splitOrbits
 
-countOrbitsNew :: [OrbitSet] -> Int -> (Int, Int)
-countOrbitsNew orbits orbitIdx = (length directOrbits + childDirects, childDirects + childIndirects)
-  where (_, directOrbits) = orbits !! orbitIdx
-        childIndices = map fromJust . filter isJust . map (findOrbitWithName orbits) $ directOrbits
-        (childDirects, childIndirects) = foldl (\acc idx -> countOrbitsNew orbits idx <+> acc)
-                                         (0,0) childIndices
-
-findOrbitWithName :: [OrbitSet] -> String -> Maybe Int
-findOrbitWithName orbits name = findIndex ((==name) . fst) $ orbits
+countOrbits :: OrbitMap -> String -> (Int, Int)
+countOrbits orbitMap name = case orbitMap !? name of
+  Just dirOrbits ->
+    let (cDirects, cIndirects) = foldl (\acc oName -> countOrbits orbitMap oName <+> acc) (0,0) dirOrbits
+    in (length dirOrbits + cDirects, cDirects + cIndirects)
+  Nothing -> (0,0)
 
 splitOrbits :: String -> [[String]]
 splitOrbits = map (Utils.splitEveryChar ')') . lines
 
-splitOrbitsToMap :: Map String [String] -> [[String]] -> Map String [String]
-splitOrbitsToMap orbitMap [] = orbitMap
-splitOrbitsToMap orbitMap (o:os) = splitOrbitsToMap updatedMap os
+makeOrbitMap :: OrbitMap -> [[String]] -> OrbitMap
+makeOrbitMap orbitMap [] = orbitMap
+makeOrbitMap orbitMap (o:os) = makeOrbitMap updatedMap os
   where (main:orbits) = o
         updatedMap = alter (appendIfExists orbits) main orbitMap
 
