@@ -1,82 +1,91 @@
 module Intcode
-  ( executeIntcodeList
-  , parseNumericInput
-  ) where
+  ( executeIntcode,
+    parseNumericInput,
+    Program (..),
+  )
+where
 
 import qualified Utils
 
-executeIntcodeList :: Int -> [Int] -> IO [Int]
-executeIntcodeList cursor inputList =
+data Program = Executing [Int] [Int] [Int] | Finished [Int] [Int] | Error Int [Int] deriving (Show)
+
+executeIntcode :: Int -> Program -> Program
+executeIntcode cursor program@(Executing opCodes inputs outputs) =
   case last fullOpCode of
-    -- Add 
+    -- Add
     '1' ->
-      let result = foldl1 (+) opArgs
-      in return (Utils.replaceNth resultPos result inputList) >>= executeIntcodeList (cursor + numArgs + 1)
+      executeIntcode nextCursor (updateWithResult (sum opArgs) inputs outputs)
     -- Multiply
     '2' ->
-      let result = foldl1 (*) opArgs
-      in return (Utils.replaceNth resultPos result inputList) >>= executeIntcodeList (cursor + numArgs + 1)
+      executeIntcode nextCursor (updateWithResult (product opArgs) inputs outputs)
     -- Input
-    '3' -> do
-      result <- getLine
-      return (Utils.replaceNth resultPos (read result) inputList) >>= executeIntcodeList (cursor + numArgs + 1)
+    '3' ->
+      case inputs of
+        [] -> Error cursor opCodes
+        current : rest -> executeIntcode nextCursor (updateWithResult current rest outputs)
     -- Print
-    '4' -> do
-      print (head opArgs)
-      return inputList >>= executeIntcodeList (cursor + numArgs + 1)
+    '4' ->
+      executeIntcode nextCursor (Executing opCodes inputs (head opArgs : outputs))
     -- Jump if true (nonzero)
     '5' ->
-      let newCursor = if head opArgs == 0 then cursor + numArgs + 1 else last opArgs
-      in return inputList >>= executeIntcodeList newCursor
+      let jumpCursor = if head opArgs == 0 then nextCursor else last opArgs
+       in executeIntcode jumpCursor program
     -- Jump if false (zero)
     '6' ->
-      let newCursor = if head opArgs == 0 then last opArgs else cursor + numArgs + 1
-      in return inputList >>= executeIntcodeList newCursor
+      let jumpCursor = if head opArgs == 0 then last opArgs else nextCursor
+       in executeIntcode jumpCursor program
     -- Less than
     '7' ->
       let result = if head opArgs < last opArgs then 1 else 0
-      in return (Utils.replaceNth resultPos result inputList) >>= executeIntcodeList (cursor + numArgs + 1)
+       in executeIntcode nextCursor (updateWithResult result inputs outputs)
     -- Equal to
     '8' ->
       let result = if head opArgs == last opArgs then 1 else 0
-      in return (Utils.replaceNth resultPos result inputList) >>= executeIntcodeList (cursor + numArgs + 1)
-    -- Invalid opcode/99 (exit)
-    _ -> return inputList
-  where fullOpCode = show $ inputList !! cursor
-        numArgs = numOpArgs (read [last fullOpCode])
-        (opArgs,resultPos) = parseOpCodeArgs cursor inputList fullOpCode numArgs
+       in executeIntcode nextCursor (updateWithResult result inputs outputs)
+    -- Exit (99)
+    '9' -> Finished (reverse outputs) opCodes
+    -- Invalid opcode
+    _ -> Error cursor opCodes
+  where
+    fullOpCode = show $ opCodes !! cursor
+    numArgs = numOpArgs (read [last fullOpCode])
+    nextCursor = cursor + numArgs + 1
+    (opArgs, resultPos) = parseOpCodeArgs cursor opCodes fullOpCode numArgs
+    updateWithResult result = Executing $ Utils.replaceNth resultPos result opCodes
 
 parseOpCodeArgs :: Int -> [Int] -> String -> Int -> ([Int], Int)
 parseOpCodeArgs cursor fullList fullCodeStr numArgs =
-  (argVals,last codeArgs)
-  where (_:paramTail) = snd . splitAt cursor $ fullList
-        codeArgs = take numArgs paramTail
-        argModes = parseArgModes fullCodeStr numArgs
-        argVals = fetchArgs fullList codeArgs argModes
+  (argVals, last codeArgs)
+  where
+    (_ : paramTail) = snd . splitAt cursor $ fullList
+    codeArgs = take numArgs paramTail
+    argModes = parseArgModes fullCodeStr numArgs
+    argVals = fetchArgs fullList codeArgs argModes
 
 data ArgMode = Immediate | Positional deriving (Show, Eq)
 
 parseArgModes :: String -> Int -> [ArgMode]
 parseArgModes codeStr numArgs =
   tail . reverse $ implicitPositional ++ givenModes
-  where givenModes = map (\c -> if c == '1' then Immediate else Positional) (init codeStr)
-        writePosConstant = if elem (last codeStr) "1278" then 0 else 1
-        implicitPositional = replicate (numArgs - length givenModes + writePosConstant) Positional
+  where
+    givenModes = map (\c -> if c == '1' then Immediate else Positional) (init codeStr)
+    writePosConstant = if elem (last codeStr) "1278" then 0 else 1
+    implicitPositional = replicate (numArgs - length givenModes + writePosConstant) Positional
 
 fetchArgs :: [Int] -> [Int] -> [ArgMode] -> [Int]
 fetchArgs fullList paramList argModes =
   foldr fetchArg [] (zip paramList argModes)
-  where fetchArg = \(val,mode) acc -> (if mode == Immediate then val else (fullList !! val)) : acc
+  where
+    fetchArg = \(val, mode) acc -> (if mode == Immediate then val else (fullList !! val)) : acc
 
 numOpArgs :: Int -> Int
 numOpArgs code
-  | elem code [1,2,7,8] = 3
-  | elem code [3,4] = 1
-  | elem code [5,6] = 2
+  | elem code [1, 2, 7, 8] = 3
+  | elem code [3, 4] = 1
+  | elem code [5, 6] = 2
   | code == 99 = 0
   | otherwise = -1 -- This shouldn't happen
-   
+
 parseNumericInput :: String -> [Int]
 parseNumericInput [] = []
 parseNumericInput rawInput = map read . Utils.splitAtCommas $ rawInput
-
