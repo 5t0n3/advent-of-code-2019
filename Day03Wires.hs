@@ -1,15 +1,17 @@
 module Day03Wires where
 
+import Data.Functor ((<&>))
 import Data.List
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust, isNothing)
 import qualified Utils
 
 part1 :: IO Int
 part1 = do
   input <- readFile "input/day03.txt"
   let [wire1, wire2] = map (parseWireSegments (0, 0) . Utils.splitAtCommas) $ lines input
-      (shortestManhattanDistance, _, _, _) = shortestIntersectDistance $ findIntersections wire1 wire2
-  return shortestManhattanDistance
+      manhattanDistances = map manhattanDistanceFromOrigin $ findIntersections wire1 wire2
+      shortestDistance = minimum manhattanDistances
+  return shortestDistance
 
 part2 :: IO Int
 part2 = do
@@ -68,37 +70,24 @@ segmentsIntersect (Horizontal y starth endh) (Vertical x startv endv) =
   isInRange y startv endv && isInRange x starth endh
 segmentsIntersect _ _ = False
 
-shortestIntersectDistance :: [(Point, WireSegment, WireSegment)] -> (Int, Point, WireSegment, WireSegment)
-shortestIntersectDistance intersections =
-  (foldl (\acc ((x, y), _, _) -> min (abs x + abs y) acc) firstDistance intersections, (firstX, firstY), seg1, seg2)
-  where
-    ((firstX, firstY), seg1, seg2) = head intersections
-    firstDistance = abs firstX + abs firstY
+manhattanDistanceFromOrigin :: (Point, WireSegment, WireSegment) -> Int
+manhattanDistanceFromOrigin ((intX, intY), _, _) = abs intX + abs intY
 
-pathLength :: [WireSegment] -> WireSegment -> Point -> Maybe Int
-pathLength wire endSegment endPoint =
-  let endIndex = elemIndex endSegment wire
-      leadingSegments = case endIndex of
-        Just len ->
-          Just $ take len wire
-        Nothing -> Nothing
-      lastLength = partialSegmentLength endSegment endPoint
-   in case leadingSegments of
-        Just segments ->
-          Just ((sum . fmap (abs . wireSegmentLength) $ segments) + abs lastLength)
-        Nothing -> Nothing
+fullPathLength :: [WireSegment] -> WireSegment -> Point -> Maybe Int
+fullPathLength wire endSegment endPoint =
+  sum . map wireSegmentLength <$> leadingSegments <&> (+ finalPartialLength)
+  where
+    leadingSegments = elemIndex endSegment wire <&> \len -> take len wire
+    finalPartialLength = partialSegmentLength endSegment endPoint
 
 pathLengthsToIntersections :: [WireSegment] -> [WireSegment] -> [(Point, WireSegment, WireSegment)] -> [Int]
 pathLengthsToIntersections _ _ [] = []
 pathLengthsToIntersections wire1 wire2 ((intPoint, finSeg1, finSeg2) : iscts) =
-  let firstIntersectionTotal = pathLength wire1 finSeg1 intPoint
-      firstUnwrapped = fromMaybe (-1) firstIntersectionTotal
-      secondIntersectionTotal = pathLength wire2 finSeg2 intPoint
-      secondUnwrapped = fromMaybe (-1) secondIntersectionTotal
-      totalLength = firstUnwrapped + secondUnwrapped
-   in if firstUnwrapped == -1 || secondUnwrapped == -1
+  let firstIntersectionTotal = fullPathLength wire1 finSeg1 intPoint
+      secondIntersectionTotal = fullPathLength wire2 finSeg2 intPoint
+   in if any isNothing [firstIntersectionTotal, secondIntersectionTotal]
         then pathLengthsToIntersections wire1 wire2 iscts
-        else totalLength : pathLengthsToIntersections wire1 wire2 iscts
+        else fromJust firstIntersectionTotal + fromJust secondIntersectionTotal : pathLengthsToIntersections wire1 wire2 iscts
 
 wireSegmentLength :: WireSegment -> Int
 wireSegmentLength (Vertical _ start end) = abs $ start - end
@@ -112,7 +101,7 @@ partialSegmentLength (Horizontal loc start _) (endX, _) =
 
 isInRange :: Int -> Int -> Int -> Bool
 isInRange loc start end =
-  (loc > start && loc < end) || (loc > end && loc < start)
+  (start < loc && loc < end) || (end < loc && loc < start)
 
 wireSegmentTuple :: WireSegment -> (Int, Int, Int)
 wireSegmentTuple seg = case seg of
