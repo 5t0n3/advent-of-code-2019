@@ -1,15 +1,15 @@
-module Day1Fuel where
+module Day01Fuel where
 
 part1 :: IO Int
 part1 = do
-  input <- readFile "input/day1input.txt"
+  input <- readFile "input/day01.txt"
   let fuelAmountList = map read . lines $ input
       fuelMass = sum . map moduleFuelNaive $ fuelAmountList
   return fuelMass
 
 part2 :: IO Int
 part2 = do
-  input <- readFile "input/day1input.txt"
+  input <- readFile "input/day01.txt"
   let fuelAmountList = map read . lines $ input
       fuelMass = sum . map moduleFuel $ fuelAmountList
   return fuelMass
