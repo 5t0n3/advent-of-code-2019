@@ -57,7 +57,7 @@ parseOpCodeArgs :: Int -> [Int] -> String -> Int -> ([Int], Int)
 parseOpCodeArgs cursor fullList fullCodeStr numArgs =
   (argVals, last codeArgs)
   where
-    (_ : paramTail) = snd . splitAt cursor $ fullList
+    (_ : paramTail) = drop cursor fullList
     codeArgs = take numArgs paramTail
     argModes = parseArgModes fullCodeStr numArgs
     argVals = fetchArgs fullList codeArgs argModes
@@ -69,20 +69,20 @@ parseArgModes codeStr numArgs =
   tail . reverse $ implicitPositional ++ givenModes
   where
     givenModes = map (\c -> if c == '1' then Immediate else Positional) (init codeStr)
-    writePosConstant = if elem (last codeStr) "1278" then 0 else 1
+    writePosConstant = if last codeStr `elem` "1278" then 0 else 1
     implicitPositional = replicate (numArgs - length givenModes + writePosConstant) Positional
 
 fetchArgs :: [Int] -> [Int] -> [ArgMode] -> [Int]
 fetchArgs fullList paramList argModes =
   foldr fetchArg [] (zip paramList argModes)
   where
-    fetchArg = \(val, mode) acc -> (if mode == Immediate then val else (fullList !! val)) : acc
+    fetchArg = \(val, mode) acc -> (if mode == Immediate then val else fullList !! val) : acc
 
 numOpArgs :: Int -> Int
 numOpArgs code
-  | elem code [1, 2, 7, 8] = 3
-  | elem code [3, 4] = 1
-  | elem code [5, 6] = 2
+  | code `elem` [1, 2, 7, 8] = 3
+  | code `elem` [3, 4] = 1
+  | code `elem` [5, 6] = 2
   | code == 99 = 0
   | otherwise = -1 -- This shouldn't happen
 
