@@ -2,7 +2,7 @@ module Day03Wires where
 
 import Data.Functor ((<&>))
 import Data.List
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (mapMaybe)
 import qualified Utils
 
 part1 :: IO Int
@@ -17,7 +17,7 @@ part2 :: IO Int
 part2 = do
   input <- readFile "input/day03.txt"
   let [wire1, wire2] = map (parseWireSegments (0, 0) . Utils.splitAtCommas) $ lines input
-      pathLengths = pathLengthsToIntersections wire1 wire2 (findIntersections wire1 wire2)
+      pathLengths = mapMaybe (totalLengthToIntersection wire1 wire2) $ findIntersections wire1 wire2
       shortestLength = minimum pathLengths
   return shortestLength
 
@@ -80,14 +80,9 @@ fullPathLength wire endSegment endPoint =
     leadingSegments = elemIndex endSegment wire <&> \len -> take len wire
     finalPartialLength = partialSegmentLength endSegment endPoint
 
-pathLengthsToIntersections :: [WireSegment] -> [WireSegment] -> [(Point, WireSegment, WireSegment)] -> [Int]
-pathLengthsToIntersections _ _ [] = []
-pathLengthsToIntersections wire1 wire2 ((intPoint, finSeg1, finSeg2) : iscts) =
-  let firstIntersectionTotal = fullPathLength wire1 finSeg1 intPoint
-      secondIntersectionTotal = fullPathLength wire2 finSeg2 intPoint
-   in if any isNothing [firstIntersectionTotal, secondIntersectionTotal]
-        then pathLengthsToIntersections wire1 wire2 iscts
-        else fromJust firstIntersectionTotal + fromJust secondIntersectionTotal : pathLengthsToIntersections wire1 wire2 iscts
+totalLengthToIntersection :: [WireSegment] -> [WireSegment] -> (Point, WireSegment, WireSegment) -> Maybe Int
+totalLengthToIntersection wire1 wire2 (intPoint, finalSeg1, finalSeg2) =
+  (+) <$> fullPathLength wire1 finalSeg1 intPoint <*> fullPathLength wire2 finalSeg2 intPoint
 
 wireSegmentLength :: WireSegment -> Int
 wireSegmentLength (Vertical _ start end) = abs $ start - end
