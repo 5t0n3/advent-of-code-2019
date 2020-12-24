@@ -1,7 +1,7 @@
 module Day03Wires where
 
 import Data.Functor ((<&>))
-import Data.List
+import Data.List (elemIndex)
 import Data.Maybe (mapMaybe)
 import qualified Utils
 
@@ -57,11 +57,15 @@ findIntersections wire1 wire2 =
     | seg1 <- wire1,
       seg2 <- wire2,
       segmentsIntersect seg1 seg2,
-      let (loc2, _, _) = wireSegmentTuple seg2
-          intPoint = case seg1 of
-            Vertical x _ _ -> (x, loc2)
-            Horizontal y _ _ -> (loc2, y)
+      -- No need to check orientations due to previous guard
+      let seg1Axis = segmentAxis seg1
+          intPoint = case seg2 of
+            Vertical x _ _ -> (x, seg1Axis)
+            Horizontal y _ _ -> (seg1Axis, y)
   ]
+  where
+    segmentAxis (Vertical x _ _) = x
+    segmentAxis (Horizontal y _ _) = y
 
 segmentsIntersect :: WireSegment -> WireSegment -> Bool
 segmentsIntersect (Vertical x startv endv) (Horizontal y starth endh) =
@@ -97,10 +101,3 @@ partialSegmentLength (Horizontal loc start _) (endX, _) =
 isInRange :: Int -> Int -> Int -> Bool
 isInRange loc start end =
   (start < loc && loc < end) || (end < loc && loc < start)
-
-wireSegmentTuple :: WireSegment -> (Int, Int, Int)
-wireSegmentTuple seg = case seg of
-  Vertical loc start end ->
-    (loc, start, end)
-  Horizontal loc start end ->
-    (loc, start, end)
