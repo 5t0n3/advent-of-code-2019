@@ -7,7 +7,7 @@ where
 
 import qualified Utils
 
-data Program = Executing [Int] [Int] [Int] | Finished [Int] [Int] | Error Int [Int] deriving (Show)
+data Program = Executing [Int] [Int] [Int] | Finished [Int] [Int] | Error Int [Int] [Int] [Int] deriving (Show)
 
 executeIntcode :: Int -> Program -> Program
 executeIntcode cursor program@(Executing opCodes inputs outputs) =
@@ -21,7 +21,7 @@ executeIntcode cursor program@(Executing opCodes inputs outputs) =
     -- Input
     '3' ->
       case inputs of
-        [] -> Error cursor opCodes
+        [] -> Error cursor opCodes inputs outputs
         current : rest -> executeIntcode nextCursor (updateWithResult current rest outputs)
     -- Print
     '4' ->
@@ -45,7 +45,7 @@ executeIntcode cursor program@(Executing opCodes inputs outputs) =
     -- Exit (99)
     '9' -> Finished (reverse outputs) opCodes
     -- Invalid opcode
-    _ -> Error cursor opCodes
+    _ -> Error cursor opCodes inputs outputs
   where
     fullOpCode = show $ opCodes !! cursor
     numArgs = numOpArgs (read [last fullOpCode])
