@@ -24,16 +24,6 @@ generatePhaseSequences range = filter ((== 5) . length . nub) . mapM (const rang
 ampOutput :: [Int] -> [Int] -> Int
 ampOutput intcode = phaseFeedbackLoop . initializePhaseVM intcode
 
-feedOutputCycle :: [Int] -> Intcode.Program -> [Int] -> Intcode.Program
-feedOutputCycle _ input [] = input
-feedOutputCycle _ err@Intcode.Error {} _ = err
-feedOutputCycle baseProgram (Intcode.Finished input _) (currentPhase : rest) =
-  case programOutput of
-    finished@(Intcode.Finished output _) -> feedOutputCycle baseProgram finished rest
-    err@Intcode.Error {} -> err
-  where
-    programOutput = Intcode.executeIntcode $ Intcode.Executing 0 baseProgram (currentPhase : input) []
-
 newtype FeedbackVM = FeedbackVM [Intcode.Program] deriving (Show)
 
 initializePhaseVM :: [Int] -> [Int] -> FeedbackVM
