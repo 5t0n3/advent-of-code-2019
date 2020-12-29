@@ -8,8 +8,8 @@ part1 = do
   rawInput <- readFile "input/day02.txt"
   let originalInput = Intcode.parseNumericInput rawInput
       updatedInput = replaceNounVerb 12 2 originalInput
-      program = Intcode.Executing updatedInput [] []
-      (Intcode.Finished _ result) = Intcode.executeIntcode 0 program
+      program = Intcode.Executing 0 updatedInput [] []
+      (Intcode.Finished _ result) = Intcode.executeIntcode program
   return $ head result
 
 part2 :: IO Int
@@ -17,7 +17,7 @@ part2 = do
   rawInput <- readFile "input/day02.txt"
   let originalInput = Intcode.parseNumericInput rawInput
       resLists = testNounVerbRange [0 .. 99] originalInput
-  let (_ : noun : verb : _) = head resLists
+  let [_, noun, verb] = head resLists
   return $ 100 * noun + verb
 
 testNounVerbRange :: [Int] -> [Int] -> [[Int]]
@@ -26,8 +26,8 @@ testNounVerbRange nvRange valueList =
     | noun <- nvRange,
       verb <- nvRange,
       let updatedList = replaceNounVerb noun verb valueList
-          program = Intcode.Executing updatedList [] []
-          (Intcode.Finished _ result) = Intcode.executeIntcode 0 program,
+          program = Intcode.Executing 0 updatedList [] []
+          (Intcode.Finished _ result) = Intcode.executeIntcode program,
       head result == 19690720
   ]
 

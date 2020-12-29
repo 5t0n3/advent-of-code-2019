@@ -7,51 +7,52 @@ where
 
 import qualified Utils
 
-data Program = Executing [Int] [Int] [Int] | Finished [Int] [Int] | Error Int [Int] [Int] [Int] deriving (Show)
+data Program = Executing Int [Int] [Int] [Int] | Finished [Int] [Int] | Error Int [Int] [Int] [Int] deriving (Show)
 
-executeIntcode :: Int -> Program -> Program
-executeIntcode cursor program@(Executing opCodes inputs outputs) =
+executeIntcode :: Program -> Program
+executeIntcode program@(Executing cursor opCodes inputs outputs) =
   case last fullOpCode of
     -- Add
     '1' ->
-      executeIntcode nextCursor (updateWithResult (sum opArgs) inputs outputs)
+      executeIntcode (updateWithResult nextCursor (sum opArgs) inputs outputs)
     -- Multiply
     '2' ->
-      executeIntcode nextCursor (updateWithResult (product opArgs) inputs outputs)
+      executeIntcode (updateWithResult nextCursor (product opArgs) inputs outputs)
     -- Input
     '3' ->
       case inputs of
-        [] -> Error cursor opCodes inputs outputs
-        current : rest -> executeIntcode nextCursor (updateWithResult current rest outputs)
+        [] -> Error cursor opCodes inputs (reverse outputs)
+        current : rest -> executeIntcode (updateWithResult nextCursor current rest outputs)
     -- Print
     '4' ->
-      executeIntcode nextCursor (Executing opCodes inputs (head opArgs : outputs))
+      executeIntcode (Executing nextCursor opCodes inputs (head opArgs : outputs))
     -- Jump if true (nonzero)
     '5' ->
       let jumpCursor = if head opArgs == 0 then nextCursor else last opArgs
-       in executeIntcode jumpCursor program
+       in executeIntcode $ Executing jumpCursor opCodes inputs outputs
     -- Jump if false (zero)
     '6' ->
       let jumpCursor = if head opArgs == 0 then last opArgs else nextCursor
-       in executeIntcode jumpCursor program
+       in executeIntcode $ Executing jumpCursor opCodes inputs outputs
     -- Less than
     '7' ->
       let result = if head opArgs < last opArgs then 1 else 0
-       in executeIntcode nextCursor (updateWithResult result inputs outputs)
+       in executeIntcode (updateWithResult nextCursor result inputs outputs)
     -- Equal to
     '8' ->
       let result = if head opArgs == last opArgs then 1 else 0
-       in executeIntcode nextCursor (updateWithResult result inputs outputs)
+       in executeIntcode (updateWithResult nextCursor result inputs outputs)
     -- Exit (99)
     '9' -> Finished (reverse outputs) opCodes
     -- Invalid opcode
-    _ -> Error cursor opCodes inputs outputs
+    _ -> Error cursor opCodes inputs (reverse outputs)
   where
     fullOpCode = show $ opCodes !! cursor
     numArgs = numOpArgs (read [last fullOpCode])
     nextCursor = cursor + numArgs + 1
     (opArgs, resultPos) = parseOpCodeArgs cursor opCodes fullOpCode numArgs
-    updateWithResult result = Executing $ Utils.replaceNth resultPos result opCodes
+    updateWithResult cursor result = Executing cursor $ Utils.replaceNth resultPos result opCodes
+executeIntcode notExecuting = notExecuting
 
 parseOpCodeArgs :: Int -> [Int] -> String -> Int -> ([Int], Int)
 parseOpCodeArgs cursor fullList fullCodeStr numArgs =
