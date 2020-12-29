@@ -54,7 +54,7 @@ extractOutput (Intcode.Finished output _) = output
 extractOutput (Intcode.Error _ _ _ output) = output
 
 continueWithInput :: Intcode.Program -> [Int] -> Intcode.Program
-continueWithInput (Intcode.Error cursor codes _ output) newInputs =
+continueWithInput (Intcode.Error cursor codes _ _) newInputs =
   Intcode.executeIntcode newProgram
   where
     newProgram = Intcode.Executing cursor codes newInputs []
