@@ -8,18 +8,21 @@ part1 :: IO Int
 part1 = do
   rawInput <- readFile "input/day07.txt"
   let parsedIntcode = Intcode.parseNumericInput rawInput
-      phaseSequences = filter ((== 5) . length . nub) . mapM (const [0 .. 4]) $ [1 .. 5]
-      dummyInput = Intcode.Finished [0] []
-      allAmpResults = [head output | phaseSeq <- phaseSequences, let (Intcode.Finished output _) = feedOutputCycle parsedIntcode dummyInput phaseSeq]
+      allAmpResults = map (ampOutput parsedIntcode) $ generatePhaseSequences [0 .. 4]
   return $ maximum allAmpResults
 
 part2 :: IO Int
 part2 = do
   rawInput <- readFile "input/day07.txt"
   let parsedIntcode = Intcode.parseNumericInput rawInput
-      phaseSequences = filter ((== 5) . length . nub) . mapM (const [5 .. 9]) $ [1 .. 5]
-      feedbackAmpResults = [phaseFeedbackLoop phaseVM | phaseSeq <- phaseSequences, let phaseVM = initializePhaseVM parsedIntcode phaseSeq]
+      feedbackAmpResults = map (ampOutput parsedIntcode) $ generatePhaseSequences [5 .. 9]
   return $ maximum feedbackAmpResults
+
+generatePhaseSequences :: [Int] -> [[Int]]
+generatePhaseSequences range = filter ((== 5) . length . nub) . mapM (const range) $ [1 .. 5]
+
+ampOutput :: [Int] -> [Int] -> Int
+ampOutput intcode = phaseFeedbackLoop . initializePhaseVM intcode
 
 feedOutputCycle :: [Int] -> Intcode.Program -> [Int] -> Intcode.Program
 feedOutputCycle _ input [] = input
