@@ -7,7 +7,12 @@ where
 
 import qualified Utils
 
-data Program = Executing Int [Int] [Int] [Int] | Finished [Int] [Int] | Error Int [Int] [Int] [Int] deriving (Show)
+data Program
+  = Executing Int [Int] [Int] [Int]
+  | Finished [Int] [Int]
+  | NeedsInput Int [Int] [Int] [Int]
+  | Error Int [Int] [Int] [Int]
+  deriving (Show)
 
 executeIntcode :: Program -> Program
 executeIntcode program@(Executing cursor opCodes inputs outputs) =
@@ -21,7 +26,7 @@ executeIntcode program@(Executing cursor opCodes inputs outputs) =
     -- Input
     '3' ->
       case inputs of
-        [] -> Error cursor opCodes inputs (reverse outputs)
+        [] -> NeedsInput cursor opCodes inputs outputs
         current : rest -> executeIntcode (updateWithResult nextCursor current rest outputs)
     -- Print
     '4' ->
