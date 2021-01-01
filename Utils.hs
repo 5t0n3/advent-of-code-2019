@@ -32,7 +32,8 @@ replaceNth _ _ [] = []
 replaceNth idx item list =
   before ++ (item : after)
   where
-    (before, _ : after) = splitAt idx list
+    (before, rest) = splitAt idx list
+    after = if null rest then [] else tail rest
 
 itemPairs :: [a] -> [(a, a)]
 itemPairs [] = []
