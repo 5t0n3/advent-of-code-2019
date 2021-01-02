@@ -5,7 +5,7 @@ module Intcode
   )
 where
 
-import Data.List (genericIndex)
+import Data.List (genericDrop, genericIndex, genericLength, genericReplicate)
 import qualified Utils
 
 data Program
@@ -16,60 +16,128 @@ data Program
   deriving (Show)
 
 executeIntcode :: Program -> Program
-executeIntcode (Executing cursor relBase opCodes inputs outputs) =
-  case justOpCode of
+executeIntcode program@(Executing cursor relBase memory inputs outputs) =
+  case opCode of
     -- Add
     "01" ->
-      executeIntcode (updateWithResult nextCursor (sum opArgs) inputs outputs)
+      executeIntcode $ updateWithResult (sum $ init args)
     -- Multiply
     "02" ->
-      executeIntcode (updateWithResult nextCursor (product opArgs) inputs outputs)
+      executeIntcode $ updateWithResult (product $ init args)
     -- Input
     "03" ->
       case inputs of
-        [] -> NeedsInput cursor relBase opCodes inputs outputs
-        current : rest -> executeIntcode (updateWithResult nextCursor current rest outputs)
+        [] -> NeedsInput cursor relBase memory inputs outputs
+        current : rest -> executeIntcode $ updateWithResult current
     -- Print
     "04" ->
-      executeIntcode (Executing nextCursor relBase opCodes inputs (head opArgs : outputs))
+      executeIntcode (Executing nextCursor relBase memory inputs (head args : outputs))
     -- Jump if true (nonzero)
     "05" ->
-      let jumpCursor = if head opArgs == 0 then nextCursor else fromInteger $ last opArgs
-       in executeIntcode $ Executing jumpCursor relBase opCodes inputs outputs
+      let jumpCursor = if head args == 0 then nextCursor else actualLastArg
+       in executeIntcode $ Executing jumpCursor relBase memory inputs outputs
     -- Jump if false (zero)
     "06" ->
-      let jumpCursor = if head opArgs == 0 then fromInteger $ last opArgs else nextCursor
-       in executeIntcode $ Executing jumpCursor relBase opCodes inputs outputs
+      let jumpCursor = if head args == 0 then actualLastArg else nextCursor
+       in executeIntcode $ Executing jumpCursor relBase memory inputs outputs
     -- Less than
     "07" ->
-      let result = if head opArgs < last opArgs then 1 else 0
-       in executeIntcode (updateWithResult nextCursor result inputs outputs)
+      let result = if head args < args !! 1 then 1 else 0
+       in executeIntcode $ updateWithResult result
     -- Equal to
     "08" ->
-      let result = if head opArgs == last opArgs then 1 else 0
-       in executeIntcode (updateWithResult nextCursor result inputs outputs)
+      let result = if head args == args !! 1 then 1 else 0
+       in executeIntcode $ updateWithResult result
     -- Adjust relative base
     "09" ->
-      executeIntcode $ Executing nextCursor (relBase + fromInteger (head opArgs)) opCodes inputs outputs
+      executeIntcode $ Executing nextCursor (relBase + head args) memory inputs outputs
     -- Exit (99)
-    "99" -> Finished (reverse outputs) opCodes
+    "99" -> Finished (reverse outputs) memory
     -- Invalid opcode
-    _ -> Error cursor opCodes inputs (reverse outputs)
+    _ -> Error cursor memory inputs (reverse outputs)
   where
-    rawOpCode = show $ opCodes `genericIndex` cursor
-    justOpCode = extractOpCode rawOpCode -- Just last 2 digits
-    numArgs = numOpArgs justOpCode
-    paddedOpCode = implicitZeroPad numArgs rawOpCode
-    nextCursor = cursor + toInteger numArgs + 1
-    argModes = parseArgModes paddedOpCode numArgs
-    readWritePos =
-      case last argModes of
-        Relative -> fromInteger (opCodes `genericIndex` nextCursor - 1) + relBase
-        _ -> fromInteger (opCodes `genericIndex` nextCursor - 1)
-    extendedMemory = if readWritePos >= toInteger (length opCodes) then opCodes ++ replicate (fromInteger readWritePos - length opCodes) 0 else opCodes
-    (opArgs, resultPos) = parseOpCodeArgs cursor relBase extendedMemory paddedOpCode numArgs
-    updateWithResult cursor result = Executing cursor relBase $ Utils.replaceNth (fromInteger resultPos) result extendedMemory
+    (opCode, rawArgs) = parseCodeInfo program
+    nextCursor = cursor + toInteger (numOpArgs opCode) + 1
+    -- Adjust if position is written to based on mode (0/2); otherwise treat as
+    -- a normal argument
+    (finalMode, finalArg) = last rawArgs
+    actualLastArg =
+      if writingOpCode opCode
+        then case finalMode of
+          Relative -> finalArg + relBase
+          Positional -> finalArg
+        else fetchArg program finalMode finalArg
+    positionalArgs = map snd . filter ((== Positional) . fst) $ rawArgs
+    -- TODO: Fix to take into account relative arguments as well
+    maxAddr = if null positionalArgs then 0 else maximum positionalArgs
+    updateMemory (Executing _ relBase _ input output) newMemory = Executing nextCursor relBase newMemory input output
+    extendedMemory = memory ++ genericReplicate (maxAddr + 1 - genericLength memory) 0
+    extendedMemoryProgram = updateMemory program extendedMemory
+    args = map (uncurry (fetchArg extendedMemoryProgram)) rawArgs
+    updateWithResult result = updateMemory extendedMemoryProgram $ Utils.replaceNth (fromInteger actualLastArg) result extendedMemory
 executeIntcode notExecuting = notExecuting
+
+stepIntcode :: Program -> Program
+stepIntcode program@(Executing cursor relBase memory inputs outputs) =
+  case opCode of
+    -- Add
+    "01" ->
+      updateWithResult (sum $ init args)
+    -- Multiply
+    "02" ->
+      updateWithResult (product $ init args)
+    -- Input
+    "03" ->
+      case inputs of
+        [] -> NeedsInput cursor relBase memory inputs outputs
+        current : rest -> updateWithResult current
+    -- Print
+    "04" ->
+      Executing nextCursor relBase memory inputs (head args : outputs)
+    -- Jump if true (nonzero)
+    "05" ->
+      let jumpCursor = if head args == 0 then nextCursor else actualLastArg
+       in Executing jumpCursor relBase memory inputs outputs
+    -- Jump if false (zero)
+    "06" ->
+      let jumpCursor = if head args == 0 then actualLastArg else nextCursor
+       in Executing jumpCursor relBase memory inputs outputs
+    -- Less than
+    "07" ->
+      let result = if head args < args !! 1 then 1 else 0
+       in updateWithResult result
+    -- Equal to
+    "08" ->
+      let result = if head args == args !! 1 then 1 else 0
+       in updateWithResult result
+    -- Adjust relative base
+    "09" ->
+      Executing nextCursor (relBase + head args) memory inputs outputs
+    -- Exit (99)
+    "99" -> Finished (reverse outputs) memory
+    -- Invalid opcode
+    _ -> Error cursor memory inputs (reverse outputs)
+  where
+    (opCode, rawArgs) = parseCodeInfo program
+    nextCursor = cursor + toInteger (numOpArgs opCode) + 1
+    -- Adjust if position is written to based on mode (0/2); otherwise treat as
+    -- a normal argument
+    (finalMode, finalArg) = last rawArgs
+    actualLastArg =
+      if writingOpCode opCode
+        then case finalMode of
+          Relative -> finalArg + relBase
+          Positional -> finalArg
+        else fetchArg program finalMode finalArg
+    positionalArgs = map snd . filter ((== Positional) . fst) $ rawArgs
+    -- TODO: Fix to take into account relative arguments as well
+    maxAddr = maximum positionalArgs
+    updateMemory (Executing cursor relBase _ input output) newMemory = Executing nextCursor relBase newMemory input output
+    extendedMemory = memory ++ genericReplicate (maxAddr + 1 - genericLength memory) 0
+    extendedMemoryProgram = updateMemory program extendedMemory
+    args = map (uncurry (fetchArg extendedMemoryProgram)) rawArgs
+    updateWithResult result = updateMemory extendedMemoryProgram $ Utils.replaceNth (fromInteger actualLastArg) result extendedMemory
+stepIntcode notExecuting = notExecuting
 
 extractOpCode :: String -> String
 extractOpCode opCode
@@ -81,6 +149,24 @@ implicitZeroPad numArgs opCode
   | length opCode < 2 + numArgs = implicitZeroPad numArgs $ '0' : opCode
   | otherwise = opCode
 
+parseCodeInfo :: Program -> (String, [(ArgMode, Integer)])
+parseCodeInfo program@(Executing cursor relBase memory _ _) =
+  (opCode, rawArguments)
+  where
+    (opCode, argInfo) = parseOpCode cursor memory
+    argModes = parseArgModes argInfo
+    rawArguments = zip argModes . genericDrop (cursor + 1) $ memory
+
+parseOpCode :: Integer -> [Integer] -> (String, String)
+parseOpCode cursor memory =
+  (opCode, take arguments paddedCode)
+  where
+    rawCode = show $ memory `genericIndex` cursor
+    opCode = extractOpCode rawCode
+    arguments = numOpArgs opCode
+    paddedCode = implicitZeroPad arguments rawCode
+
+{-
 parseOpCodeArgs :: Integer -> Integer -> [Integer] -> String -> Int -> ([Integer], Integer)
 parseOpCodeArgs cursor relBase fullList fullCodeStr numArgs =
   if writingOpCode (extractOpCode fullCodeStr)
@@ -92,25 +178,23 @@ parseOpCodeArgs cursor relBase fullList fullCodeStr numArgs =
     argModes = parseArgModes fullCodeStr numArgs
     argVals = fetchArgs fullList relBase codeArgs argModes
     originalResultPos = last codeArgs
-    resultPos = if last argModes == Relative then originalResultPos + relBase else originalResultPos
+resultPos = if last argModes == Relative then originalResultPos + relBase else
+originalResultPos
+    -}
 
 data ArgMode = Positional | Immediate | Relative deriving (Show, Eq)
 
-parseArgModes :: String -> Int -> [ArgMode]
-parseArgModes codeStr numArgs =
-  map toArgMode argModes
+parseArgModes :: String -> [ArgMode]
+parseArgModes = reverse . map toArgMode
   where
-    argModes = reverse . take numArgs $ codeStr
     toArgMode '0' = Positional
     toArgMode '1' = Immediate
     toArgMode '2' = Relative
 
-fetchArgs :: [Integer] -> Integer -> [Integer] -> [ArgMode] -> [Integer]
-fetchArgs fullList relBase = zipWith fetchArg
-  where
-    fetchArg val Immediate = val
-    fetchArg idx Positional = fullList `genericIndex` idx
-    fetchArg relIdx Relative = fullList `genericIndex` (relIdx + relBase)
+fetchArg :: Program -> ArgMode -> Integer -> Integer
+fetchArg _ Immediate val = val
+fetchArg (Executing _ relBase memory _ _) Positional idx = memory `genericIndex` idx
+fetchArg (Executing _ relBase memory _ _) Relative relIdx = memory `genericIndex` (relIdx + relBase)
 
 numOpArgs :: String -> Int
 numOpArgs code
