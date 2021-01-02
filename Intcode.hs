@@ -1,5 +1,6 @@
 module Intcode
   ( executeIntcode,
+    stepIntcode,
     parseNumericInput,
     Program (..),
   )
@@ -67,10 +68,17 @@ executeIntcode program@(Executing cursor relBase memory inputs outputs) =
           Relative -> finalArg + relBase
           Positional -> finalArg
         else fetchArg program finalMode finalArg
-    positionalArgs = map snd . filter ((== Positional) . fst) $ rawArgs
+    nonImmediateArgs = filter ((/= Immediate) . fst) rawArgs
     -- TODO: Fix to take into account relative arguments as well
-    maxAddr = if null positionalArgs then 0 else maximum positionalArgs
-    updateMemory (Executing _ relBase _ input output) newMemory = Executing nextCursor relBase newMemory input output
+    maxAddr =
+      maximum $
+        map
+          ( \(mode, arg) -> case mode of
+              Relative -> arg + relBase
+              Positional -> arg
+          )
+          nonImmediateArgs
+    updateMemory (Executing cursor relBase _ input output) newMemory = Executing nextCursor relBase newMemory input output
     extendedMemory = memory ++ genericReplicate (maxAddr + 1 - genericLength memory) 0
     extendedMemoryProgram = updateMemory program extendedMemory
     args = map (uncurry (fetchArg extendedMemoryProgram)) rawArgs
@@ -129,9 +137,16 @@ stepIntcode program@(Executing cursor relBase memory inputs outputs) =
           Relative -> finalArg + relBase
           Positional -> finalArg
         else fetchArg program finalMode finalArg
-    positionalArgs = map snd . filter ((== Positional) . fst) $ rawArgs
+    nonImmediateArgs = filter ((/= Immediate) . fst) rawArgs
     -- TODO: Fix to take into account relative arguments as well
-    maxAddr = maximum positionalArgs
+    maxAddr =
+      maximum $
+        map
+          ( \(mode, arg) -> case mode of
+              Relative -> arg + relBase
+              Positional -> arg
+          )
+          nonImmediateArgs
     updateMemory (Executing cursor relBase _ input output) newMemory = Executing nextCursor relBase newMemory input output
     extendedMemory = memory ++ genericReplicate (maxAddr + 1 - genericLength memory) 0
     extendedMemoryProgram = updateMemory program extendedMemory
